@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Route Guardian | CCNY</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+/* Custom styles for animations and map features */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body {
+font-family: 'Inter', sans-serif;
+background-color: #f8fafc;
+}
+
+/* Hide scrollbar for clean lists */
+.no-scrollbar::-webkit-scrollbar {
+display: none;
+}
+.no-scrollbar {
+-ms-overflow-style: none;
+scrollbar-width: none;
+}
+
+/* Map Node Animations */
+@keyframes pulse-node {
+0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(currentcolor, 0.7); }
+70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(currentcolor, 0); }
+100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(currentcolor, 0); }
+}
+.node-pulse {
+animation: pulse-node 2s infinite;
+}
+
+/* Subway Line Colors /
+.line-red { background-color: #ee352e; } / 1 Train /
+.line-blue { background-color: #0039a6; } / A, C Trains /
+.line-orange { background-color: #ff6319; } / D Train /
+.line-bus { background-color: #00add0; } / Bx Buses */
+
+.modal-backdrop {
+background-color: rgba(15, 23, 42, 0.6);
+backdrop-filter: blur(4px);
+}
+</style>
+</head>
+<body class="text-slate-800 antialiased h-screen flex flex-col overflow-hidden">
+
+<!-- Header -->
+<header class="bg-white border-b border-slate-200 shadow-sm z-10 relative">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="bg-indigo-600 text-white p-2 rounded-lg">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+</div>
+<div>
+<h1 class="text-xl font-bold text-slate-900 leading-none">Route Guardian</h1>
+<span class="text-xs text-indigo-600 font-medium">CCNY Edition</span>
+</div>
+</div>
+
+<div>
+<button onclick="openModal('subscription-modal')" class="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white px-4 py-2 rounded-full font-medium transition-all shadow-sm hover:shadow">
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+<span class="hidden sm:inline">Go Premium / CCNY Login</span>
+<span class="sm:hidden">Upgrade</span>
+</button>
+</div>
+</div>
+</header>
+
+<!-- Main Content Grid -->
+<main class="flex-1 overflow-auto bg-slate-50 relative">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-full">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+
+<!-- Left/Main Column: Map & Active Guidance -->
+<div class="lg:col-span-8 flex flex-col gap-6 h-full">
+
+<!-- Stress Score & Top Level Alert -->
+<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+<div class="flex items-center gap-4">
+<!-- Dynamic Stress Meter -->
+<div class="relative w-16 h-16 flex items-center justify-center shrink-0">
+<svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+<path class="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3" />
+<path id="stress-meter-fill" class="text-amber-500 transition-all duration-1000 ease-out" stroke-dasharray="65, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3" />
+</svg>
+<div class="absolute flex flex-col items-center">
+<span id="stress-score-text" class="text-xl font-bold text-slate-800 leading-none">65</span>
+</div>
+</div>
+<div>
+<h2 class="text-lg font-bold text-slate-900">Current Commute Stress</h2>
+<p id="stress-description" class="text-sm text-amber-600 font-medium">Moderate delays on the 1 line. Avoid 137th St.</p>
+</div>
+</div>
+
+<div class="bg-slate-50 p-3 rounded-xl border border-slate-100 max-w-sm">
+<div class="flex items-center gap-2 mb-1 text-indigo-700">
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+<span class="text-sm font-semibold">Guardian Recommendation</span>
+</div>
+<p id="guardian-rec" class="text-xs text-slate-600">
+Walk to 145th St and take the A/C train. It's 4 mins further but 30% less crowded right now.
+</p>
+</div>
+</div>
+
+<!-- Interactive Mock Map -->
+<div class="bg-slate-900 rounded-2xl shadow-sm flex-1 relative overflow-hidden min-h-[400px]">
+<div class="absolute inset-0 opacity-20 pointer-events-none" style="background-image: radial-gradient(#475569 1px, transparent 1px); background-size: 20px 20px;"></div>
+
+<div class="absolute top-4 left-4 bg-slate-800/80 backdrop-blur border border-slate-700 text-white text-xs px-3 py-2 rounded-lg pointer-events-none">
+<div class="font-semibold mb-1 text-slate-300">Live MTA Network</div>
+<div class="flex items-center gap-2 mb-1"><div class="w-2 h-2 rounded-full bg-emerald-400"></div> Smooth</div>
+<div class="flex items-center gap-2 mb-1"><div class="w-2 h-2 rounded-full bg-amber-400"></div> Crowded</div>
+<div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-rose-500"></div> Delayed</div>
+</div>
+
+<!-- Map Content (Abstract representations) -->
+<div class="relative w-full h-full p-8 flex items-center justify-center">
+
+<!-- CCNY Campus Marker -->
+<div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10">
+<div class="bg-indigo-500 text-white p-2 rounded-lg shadow-lg mb-1">
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+</div>
+<span class="text-white text-xs font-bold bg-slate-800/80 px-2 py-1 rounded backdrop-blur">CCNY Campus</span>
+</div>
+
+<!-- 1 Train Line -->
+<div class="absolute left-1/3 top-0 bottom-0 w-2 line-red opacity-80"></div>
+<!-- 137th St Station -->
+<div class="absolute left-1/3 top-[40%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-2">
+<div id="node-137" class="w-5 h-5 rounded-full bg-rose-500 border-4 border-slate-900 node-pulse text-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.6)]"></div>
+<span class="text-white text-xs font-medium bg-slate-800 px-2 py-1 rounded">137th St (1)</span>
+</div>
+
+<!-- A/C/B/D Line -->
+<div class="absolute right-1/3 top-0 bottom-0 flex">
+<div class="w-1.5 line-blue opacity-80"></div>
+<div class="w-1.5 line-orange opacity-80"></div>
+</div>
+<!-- 145th St Station -->
+<div class="absolute right-1/3 top-[25%] translate-x-1/2 -translate-y-1/2 flex items-center gap-2 flex-row-reverse">
+<div id="node-145" class="w-5 h-5 rounded-full bg-emerald-400 border-4 border-slate-900 text-emerald-400"></div>
+<span class="text-white text-xs font-medium bg-slate-800 px-2 py-1 rounded">145th St (A,C,B,D)</span>
+</div>
+<!-- 125th St Station -->
+<div class="absolute right-1/3 top-[65%] translate-x-1/2 -translate-y-1/2 flex items-center gap-2 flex-row-reverse">
+<div id="node-125" class="w-5 h-5 rounded-full bg-amber-400 border-4 border-slate-900 text-amber-400"></div>
+<span class="text-white text-xs font-medium bg-slate-800 px-2 py-1 rounded">125th St (A,C,B,D)</span>
+</div>
+
+<!-- Bx15 Bus Line (curved) -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+<path d="M 0,50 Q 50%,200 100%,300" fill="none" stroke="#00add0" stroke-width="4" stroke-dasharray="8 8" opacity="0.6"/>
+</svg>
+<div class="absolute top-[35%] left-[25%] -translate-x-1/2 -translate-y-1/2">
+<div id="node-bx15" class="w-4 h-4 rounded-full bg-emerald-400 border-2 border-slate-900"></div>
+<span class="absolute top-5 left-0 text-slate-300 text-[10px] whitespace-nowrap">Bx15 Stop</span>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Right Column: Subscriptions, Alerts & Breaks -->
+<div class="lg:col-span-4 flex flex-col gap-6 h-full overflow-y-auto no-scrollbar pb-6">
+
+<!-- My Routes / Subscriptions -->
+<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+<div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+<h3 class="font-bold text-slate-800 flex items-center gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-600"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+My Monitored Routes
+</h3>
+<button onclick="openModal('add-route-modal')" class="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 flex items-center justify-center transition-colors shadow-sm" aria-label="Add Route">
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+</div>
+<div class="p-4 flex flex-col gap-3" id="subscriptions-list">
+<!-- Populated by JS -->
+</div>
+</div>
+
+<!-- Micro-Breaks Suggestion -->
+<div class="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-2xl shadow-sm border border-slate-800 p-5 text-white relative overflow-hidden">
+<!-- Decorative background shapes -->
+<div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full mix-blend-multiply filter blur-2xl opacity-50"></div>
+<div class="absolute -bottom-4 -left-4 w-24 h-24 bg-purple-500 rounded-full mix-blend-multiply filter blur-2xl opacity-50"></div>
+
+<div class="relative z-10">
+<div class="flex items-center gap-2 mb-3">
+<div class="bg-white/20 p-1.5 rounded-md backdrop-blur">
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+</div>
+<h3 class="font-bold text-lg">Stress Too High?</h3>
+</div>
+<p class="text-slate-300 text-sm mb-4">Delays are spiking. Take a micro-break nearby to let the crowds clear out.</p>
+
+<div id="micro-break-card" class="bg-white/10 backdrop-blur border border-white/20 rounded-xl p-3">
+<div class="flex justify-between items-start mb-1">
+<h4 class="font-semibold text-white">Taszo Espresso Bar</h4>
+<span class="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">Quiet</span>
+</div>
+<p class="text-xs text-slate-300 mb-2">5 min walk from 145th St. Great Wi-Fi and seating available right now.</p>
+<button class="w-full py-1.5 bg-white/10 hover:bg-white/20 rounded text-xs font-medium transition-colors border border-white/10">
+Route Me Here Instead
+</button>
+</div>
+</div>
+</div>
+
+<!-- Live Community Feed (Mock) -->
+<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+<h3 class="font-bold text-slate-800 mb-3 text-sm flex items-center gap-2">
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+CCNY Commuter Reports
+</h3>
+<div class="space-y-3">
+<div class="text-sm">
+<div class="flex justify-between text-xs mb-0.5">
+<span class="font-medium text-slate-700">Student_A12</span>
+<span class="text-slate-400">2 mins ago</span>
+</div>
+<p class="text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">137th st uptown platform is packed shoulder to shoulder. Avoid if you can.</p>
+</div>
+<div class="text-sm">
+<div class="flex justify-between text-xs mb-0.5">
+<span class="font-medium text-slate-700">BioMajor99</span>
+<span class="text-slate-400">15 mins ago</span>
+</div>
+<p class="text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">Bx15 just drove past 125th without stopping, completely full.</p>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+</main>
+
+<!-- ============================================== -->
+<!-- MODALS -->
+<!-- ============================================== -->
+
+<!-- Add Route Modal -->
+<div id="add-route-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-200">
+<div class="absolute inset-0 modal-backdrop" onclick="closeModal('add-route-modal')"></div>
+<div class="bg-white rounded-2xl shadow-xl w-full max-w-md m-4 relative z-10 transform scale-95 transition-transform duration-200" id="add-route-content">
+<div class="p-5 border-b border-slate-100 flex justify-between items-center">
+<h3 class="text-lg font-bold text-slate-900">Subscribe to Routes</h3>
+<button onclick="closeModal('add-route-modal')" class="text-slate-400 hover:text-slate-600">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+</button>
+</div>
+<div class="p-5 max-h-[60vh] overflow-y-auto no-scrollbar">
+<p class="text-sm text-slate-500 mb-4">Select lines to monitor for crowd forecasts and CCNY-specific delays.</p>
+
+<div class="space-y-2" id="available-routes-list">
+<!-- Populated by JS -->
+</div>
+</div>
+<div class="p-5 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+<button onclick="closeModal('add-route-modal')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl transition-colors">
+Done
+</button>
+</div>
+</div>
+</div>
+
+<!-- Subscription / Login Modal -->
+<div id="subscription-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-200">
+<div class="absolute inset-0 modal-backdrop" onclick="closeModal('subscription-modal')"></div>
+<div class="bg-white rounded-2xl shadow-xl w-full max-w-lg m-4 relative z-10 transform scale-95 transition-transform duration-200 flex flex-col md:flex-row overflow-hidden" id="sub-content">
+
+<button onclick="closeModal('subscription-modal')" class="absolute top-3 right-3 text-slate-400 hover:text-slate-600 z-20">
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+</button>
+
+<!-- CCNY Login Side -->
+<div class="flex-1 p-6 md:p-8 border-b md:border-b-0 md:border-r border-slate-100 bg-slate-50">
+<div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-4">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+</div>
+<h3 class="text-xl font-bold text-slate-900 mb-2">Student Access</h3>
+<p class="text-sm text-slate-500 mb-6">Enter your <span class="font-semibold">@citymail.cuny.edu</span> address to get Guardian Premium entirely free.</p>
+
+<form onsubmit="event.preventDefault(); alert('Verification email sent to CCNY address!'); closeModal('subscription-modal');">
+<input type="email" placeholder="student@citymail.cuny.edu" class="w-full px-4 py-2 border border-slate-300 rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-sm" required>
+<button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-2 rounded-lg transition-colors text-sm">
+Verify Student Status
+</button>
+</form>
+</div>
+
+<!-- Pay Side -->
+<div class="flex-1 p-6 md:p-8 bg-white flex flex-col justify-center">
+<div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-4">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+</div>
+<h3 class="text-xl font-bold text-slate-900 mb-1">Standard Premium</h3>
+<div class="mb-4">
+<span class="text-3xl font-extrabold text-slate-900">$`3.99</span>
+<span class="text-slate-500 text-sm">/month</span>
+</div>
+<ul class="text-sm text-slate-600 space-y-2 mb-6">
+<li class="flex items-center gap-2"><svg class="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Live Crowding Heatmaps</li>
+<li class="flex items-center gap-2"><svg class="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Unlimited Route Tracking</li>
+<li class="flex items-center gap-2"><svg class="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Micro-break Alerts</li>
+</ul>
+<button onclick="alert('Redirecting to Stripe checkout...');" class="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-medium py-2 rounded-lg transition-colors text-sm shadow-sm">
+Subscribe Now
+</button>
+</div>
+</div>
+</div>
+
+<!-- JavaScript Logic -->
+<script>
+// --- Data Models ---
+
+// All potential routes a user can track
+const allRoutes = [
+{ id: 't-1', type: 'train', name: '1 Train', lineClass: 'bg-red-500 text-white', desc: 'Broadway - 7 Ave Local' },
+{ id: 't-a', type: 'train', name: 'A Train', lineClass: 'bg-blue-600 text-white', desc: '8 Ave Express' },
+{ id: 't-c', type: 'train', name: 'C Train', lineClass: 'bg-blue-600 text-white', desc: '8 Ave Local' },
+{ id: 't-d', type: 'train', name: 'D Train', lineClass: 'bg-orange-500 text-white', desc: '6 Ave Express' },
+{ id: 'b-bx15', type: 'bus', name: 'Bx15', lineClass: 'bg-cyan-600 text-white', desc: '125th St / Willis Ave' },
+{ id: 'b-m100', type: 'bus', name: 'M100', lineClass: 'bg-cyan-600 text-white', desc: 'Amsterdam Ave' },
+];
+
+// State: Routes the user is currently subscribed to
+let userSubscriptions = ['t-1', 't-a', 'b-bx15'];
+
+// Live simulated status for lines
+const liveStatus = {
+'t-1': { status: 'Severe Delays', crowd: 90, color: 'text-rose-500', bg: 'bg-rose-50', note: 'Track fire near 137th St.' },
+'t-a': { status: 'Good Service', crowd: 40, color: 'text-emerald-500', bg: 'bg-emerald-50', note: 'Normal volumes.' },
+'t-c': { status: 'Good Service', crowd: 35, color: 'text-emerald-500', bg: 'bg-emerald-50', note: 'Normal volumes.' },
+'t-d': { status: 'Moderate Delays', crowd: 70, color: 'text-amber-500', bg: 'bg-amber-50', note: 'Signal problems at 125th.' },
+'b-bx15': { status: 'Crowded', crowd: 85, color: 'text-amber-500', bg: 'bg-amber-50', note: 'Bunching near Broadway.' },
+'b-m100': { status: 'Good Service', crowd: 20, color: 'text-emerald-500', bg: 'bg-emerald-50', note: 'Light traffic.' }
+};
+
+// Micro break database
+const microBreaks = [
+{ name: 'Taszo Espresso Bar', loc: 'Near 145th St', desc: 'Quiet, good Wi-Fi. Perfect for letting 1 train crowds pass.', status: 'Quiet' },
+{ name: 'St. Nicholas Park', loc: '135th to 141st', desc: 'Take a scenic walk instead of standing on a packed platform.', status: 'Outdoors' },
+{ name: 'The Chipped Cup', loc: 'Broadway & 148th', desc: 'Cozy backyard open. Good spot to wait out delays.', status: 'Moderate' }
+];
+
+// --- Core UI Functions ---
+
+function renderSubscriptions() {
+const listEl = document.getElementById('subscriptions-list');
+listEl.innerHTML = '';
+
+if (userSubscriptions.length === 0) {
+listEl.innerHTML = <div class="text-center py-6 text-slate-500 text-sm"&gt;No routes monitored. Click '+' to add.&lt;/div>;
+return;
+}
+
+userSubscriptions.forEach(id => {
+const route = allRoutes.find(r => r.id === id);
+const status = liveStatus[id];
+
+// Icon based on type
+const icon = route.type === 'train'
+? <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"&gt;&lt;rect x="4" y="3" width="16" height="16" rx="2"/&gt;&lt;path d="M4 11h16"/&gt;&lt;path d="M12 3v8"/&gt;&lt;path d="m8 19-2 3"/&gt;&lt;path d="m18 22-2-3"/&gt;&lt;path d="M8 15h0"/&gt;&lt;path d="M16 15h0"/&gt;&lt;/svg>
+: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"&gt;&lt;path d="M8 6v6"/&gt;&lt;path d="M15 6v6"/&gt;&lt;path d="M2 12h19.6"/&gt;&lt;path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/&gt;&lt;circle cx="7" cy="18" r="2"/&gt;&lt;path d="M9 18h5"/&gt;&lt;circle cx="16" cy="18" r="2"/&gt;&lt;/svg>;
+
+// Crowding bar color
+let barColor = 'bg-emerald-400';
+if(status.crowd > 60) barColor = 'bg-amber-400';
+if(status.crowd > 80) barColor = 'bg-rose-500';
+
+const html = &lt;div class="border border-slate-200 rounded-xl p-3 hover:border-slate-300 transition-colors bg-white group relative"&gt; &lt;button onclick="toggleSubscription('${id}')" class="absolute top-3 right-3 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+</button>
+
+<div class="flex items-center gap-3 mb-2">
+<div class="w-8 h-8 rounded-full {route.name.split(' ')[0]}
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<h4 class="font-bold text-slate-800 text-sm truncate">{status.color} {status.status}</span>
+</div>
+<p class="text-xs text-slate-500 truncate">$`{route.desc}</p>
+</div>
+</div>
+
+<div class="mt-3">
+<div class="flex justify-between text-[10px] text-slate-500 mb-1 font-medium">
+<span>Sensor Crowding Forecast</span>
+<span>${status.crowd}% Capacity&lt;/span&gt; &lt;/div&gt; &lt;div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden"&gt; &lt;div class="${barColor} h-1.5 rounded-full transition-all duration-500" style="width: ${status.crowd}%"&gt;&lt;/div&gt; &lt;/div&gt; ${status.note ? <p class="text-xs mt-2 text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-100"&gt;&lt;span class="font-semibold"&gt;Update:&lt;/span&gt;${status.note}</p>: ''} &lt;/div&gt; &lt;/div&gt;;
+listEl.insertAdjacentHTML('beforeend', html);
+});
+
+updateStressScore();
+}
+
+function renderAvailableRoutes() {
+const listEl = document.getElementById('available-routes-list');
+listEl.innerHTML = '';
+
+allRoutes.forEach(route => {
+const isSubbed = userSubscriptions.includes(route.id);
+
+const html = &lt;div class="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer" onclick="toggleSubscription('${route.id}')">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full ${route.lineClass} flex items-center justify-center text-sm font-bold shadow-sm"&gt; ${route.name.split(' ')[0]}
+</div>
+<div>
+<h4 class="font-bold text-slate-800 text-sm">${route.name}&lt;/h4&gt; &lt;p class="text-xs text-slate-500"&gt;${route.desc}</p>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSubbed ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 text-transparent'}"&gt; &lt;svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"&gt;&lt;polyline points="20 6 9 17 4 12"/&gt;&lt;/svg&gt; &lt;/div&gt; &lt;/div&gt;;
+listEl.insertAdjacentHTML('beforeend', html);
+});
+}
+
+function toggleSubscription(id) {
+if (userSubscriptions.includes(id)) {
+userSubscriptions = userSubscriptions.filter(subId => subId !== id);
+} else {
+userSubscriptions.push(id);
+}
+renderSubscriptions();
+renderAvailableRoutes(); // Update modal UI if open
+}
+
+function updateStressScore() {
+// Simple algorithm: Average crowding of subbed routes + penalty for severe delays
+if (userSubscriptions.length === 0) {
+setStressMeter(0, "No data", "Add routes to see your stress score.", "text-slate-400");
+return;
+}
+
+let totalCrowd = 0;
+let severeCount = 0;
+
+userSubscriptions.forEach(id => {
+const status = liveStatus[id];
+totalCrowd += status.crowd;
+if (status.status.includes('Severe')) severeCount += 1;
+if (status.status.includes('Moderate')) severeCount += 0.5;
+});
+
+let baseScore = totalCrowd / userSubscriptions.length;
+let finalScore = Math.min(100, Math.round(baseScore + (severeCount * 20)));
+
+let desc = "";
+let colorClass = "text-emerald-500";
+let recText = "Your standard commute looks smooth. Stick to your usual route.";
+
+if (finalScore > 75) {
+colorClass = "text-rose-500";
+desc = "High stress conditions. Severe delays detected.";
+recText = "Avoid the 1 train entirely. Walk to 145th and take A/C, or take a micro-break.";
+cycleMicroBreaks(); // Suggest a break if stress is high
+} else if (finalScore > 40) {
+colorClass = "text-amber-500";
+desc = "Moderate crowding and delays on your lines.";
+recText = "The A/C is less crowded than the 1 right now. Consider the extra walk to 145th.";
+} else {
+desc = "Smooth sailing. Low crowd levels.";
+}
+
+setStressMeter(finalScore, finalScore.toString(), desc, colorClass);
+document.getElementById('guardian-rec').innerText = recText;
+updateMapVisuals(finalScore);
+}
+
+function setStressMeter(value, text, desc, colorClass) {
+const meterFill = document.getElementById('stress-meter-fill');
+const scoreText = document.getElementById('stress-score-text');
+const descText = document.getElementById('stress-description');
+
+// SVG stroke-dasharray max is 100
+meterFill.setAttribute('stroke-dasharray', ${value}, 100`);
+
+// Update Colors
+meterFill.className.baseVal = transition-all duration-1000 ease-out${colorClass}`;
+scoreText.innerText = text;
+
+descText.innerText = desc;
+descText.className = text-sm font-medium ${colorClass}`;
+}
+
+function updateMapVisuals(stressScore) {
+// Mock logic to change map nodes based on stress score
+const node137 = document.getElementById('node-137');
+if(userSubscriptions.includes('t-1') && liveStatus['t-1'].status.includes('Severe')) {
+node137.classList.add('node-pulse', 'bg-rose-500', 'text-rose-500');
+node137.classList.remove('bg-emerald-400', 'text-emerald-400');
+} else {
+node137.classList.remove('node-pulse', 'bg-rose-500', 'text-rose-500');
+node137.classList.add('bg-emerald-400', 'text-emerald-400');
+}
+}
+
+function cycleMicroBreaks() {
+// Randomly pick a break suggestion
+const breakItem = microBreaks[Math.floor(Math.random() * microBreaks.length)];
+const card = document.getElementById('micro-break-card');
+
+card.innerHTML = &lt;div class="flex justify-between items-start mb-1"&gt; &lt;h4 class="font-semibold text-white"&gt;${breakItem.name}</h4>
+<span class="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">{breakItem.desc} (${breakItem.loc})</p>
+<button class="w-full py-1.5 bg-white/10 hover:bg-white/20 rounded text-xs font-medium transition-colors border border-white/10">
+Route Me Here Instead
+</button>
+`;
+}
+
+// --- Modal Logic ---
+
+function openModal(id) {
+const modal = document.getElementById(id);
+const content = modal.children[1];
+
+modal.classList.remove('hidden');
+// Trigger reflow
+void modal.offsetWidth;
+
+modal.classList.remove('opacity-0');
+content.classList.remove('scale-95');
+
+if (id === 'add-route-modal') renderAvailableRoutes();
+}
+
+function closeModal(id) {
+const modal = document.getElementById(id);
+const content = modal.children[1];
+
+modal.classList.add('opacity-0');
+content.classList.add('scale-95');
+
+setTimeout(() => {
+modal.classList.add('hidden');
+}, 200); // Matches duration-200
+}
+
+// --- Initialization ---
+
+document.addEventListener('DOMContentLoaded', () => {
+renderSubscriptions();
+cycleMicroBreaks();
+
+// Simulate live data updates (subtle changes to crowding)
+setInterval(() => {
+let changed = false;
+userSubscriptions.forEach(id => {
+// 30% chance to fluctuate crowding slightly
+if (Math.random() > 0.7) {
+const change = Math.floor(Math.random() * 11) - 5; // -5 to +5
+let newCrowd = liveStatus[id].crowd + change;
+newCrowd = Math.max(10, Math.min(100, newCrowd)); // clamp 10-100
+liveStatus[id].crowd = newCrowd;
+changed = true;
+}
+});
+if (changed) {
+renderSubscriptions(); // re-render UI with new numbers
+}
+}, 5000);
+});
+
+</script>
+</body>
+</html>

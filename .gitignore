@@ -1,0 +1,9 @@
+# dependencies
+node_modules/
+
+# environment – never commit real keys
+.env
+
+# build artifacts / logs
+*.log
+npm-debug.log*
