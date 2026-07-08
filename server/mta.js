@@ -23,16 +23,19 @@ const FEEDS = {
   ace: `${FEED_BASE}/nyct%2Fgtfs-ace`, // A,C,E
   bdfm: `${FEED_BASE}/nyct%2Fgtfs-bdfm`, // B,D,F,M
   alerts: `${FEED_BASE}/camsys%2Fsubway-alerts`, // Real-time alerts
+  busAlerts: `${FEED_BASE}/camsys%2Fbus-alerts`, // Bus alerts
 };
 
 // Routes the app cares about for the CCNY campus, mapped to the feed that
 // carries them and the nearby station stop_id (base id, without the N/S
 // direction suffix that GTFS-RT appends).
 const ROUTES = {
-  't-1': { route: '1', feed: 'numbered', stopId: '137', label: '137th St-City College' },
-  't-a': { route: 'A', feed: 'ace', stopId: 'A15', label: '145th St' },
-  't-c': { route: 'C', feed: 'ace', stopId: 'A15', label: '145th St' },
-  't-d': { route: 'D', feed: 'bdfm', stopId: 'A32', label: '125th St' },
+  't-1': { route: '1', feed: 'numbered', stopId: '137', label: '137th St-City College', type: 'train' },
+  't-a': { route: 'A', feed: 'ace', stopId: 'A15', label: '145th St', type: 'train' },
+  't-c': { route: 'C', feed: 'ace', stopId: 'A15', label: '145th St', type: 'train' },
+  't-d': { route: 'D', feed: 'bdfm', stopId: 'A32', label: '125th St', type: 'train' },
+  'b-bx15': { route: 'BX15', feed: 'busFallback', label: '125th St / Willis Ave', type: 'bus', defaultCrowd: 55 },
+  'b-m100': { route: 'M100', feed: 'busFallback', label: 'Amsterdam Ave', type: 'bus', defaultCrowd: 25 },
 };
 
 const FEED_CACHE_MS = 25_000; // MTA feeds refresh roughly every 30s
@@ -115,7 +118,10 @@ function extractAlerts(feed, routeId) {
     if (!entity.alert) continue;
 
     // Check if alert affects our route
-    const affectsRoute = Array.isArray(entity.alert.informedEntity) && entity.alert.informedEntity.some((e) => e.routeId === routeId);
+    const affectsRoute = Array.isArray(entity.alert.informedEntity) && entity.alert.informedEntity.some((e) => {
+      if (!e.routeId) return false;
+      return e.routeId === routeId || e.routeId.endsWith(`_${routeId}`) || e.routeId.endsWith(`-${routeId}`);
+    });
     if (!affectsRoute) continue;
 
     // Check if alert is currently active
@@ -147,6 +153,9 @@ function computeStatus({ arrivals, maxDelaySeconds, routeAlerts = [] }) {
   const gapMinutes = arrivals.length >= 2 ? arrivals[1].minutesAway - arrivals[0].minutesAway : 6;
 
   let crowd = Math.min(95, Math.round(30 + gapMinutes * 6 + delayMinutes * 4));
+  if (routeAlerts.length > 0) {
+    crowd = Math.max(crowd, 85); // Make stress meter go up if there is an alert
+  }
   crowd = Math.max(10, crowd);
 
   let status = 'Good Service';
@@ -177,7 +186,8 @@ function computeStatus({ arrivals, maxDelaySeconds, routeAlerts = [] }) {
  * doesn't take down the whole dashboard.
  */
 async function getLiveStatus() {
-  const feedKeysNeeded = [...new Set(Object.values(ROUTES).map((r) => r.feed)), 'alerts'];
+  const routeFeeds = Object.values(ROUTES).map((r) => r.feed).filter((f) => f !== 'busFallback');
+  const feedKeysNeeded = [...new Set(routeFeeds), 'alerts', 'busAlerts'];
   const feeds = {};
 
   await Promise.all(
@@ -192,6 +202,21 @@ async function getLiveStatus() {
 
   const result = {};
   for (const [id, cfg] of Object.entries(ROUTES)) {
+    if (cfg.type === 'bus') {
+      const routeAlerts = extractAlerts(feeds['busAlerts'], cfg.route);
+      const isAlert = routeAlerts.length > 0;
+      result[id] = {
+        status: isAlert ? 'Service Alert' : 'Estimated',
+        crowd: isAlert ? Math.max(85, cfg.defaultCrowd ?? 0) : (cfg.defaultCrowd ?? 25),
+        note: isAlert ? routeAlerts.slice(0, 2).join(' • ') : 'Live bus data requires an MTA Bus Time API key - showing a typical estimate.',
+        arrivals: [],
+        source: 'estimate',
+        station: cfg.label,
+        updatedAt: new Date().toISOString(),
+      };
+      continue;
+    }
+
     const feed = feeds[cfg.feed];
     if (!feed || feed.error) {
       result[id] = {
