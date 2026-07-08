@@ -45,7 +45,7 @@ npm install
 
 # 2. Configure environment variables
 cp .env.example .env
-# Edit .env and set at minimum:  MTA_API_KEY=your_key_here
+# Edit .env and set values as needed (MTA_API_KEY is optional).
 
 # 3. Run the server
 npm start          # production
@@ -194,3 +194,5 @@ Tests cover:
 - Feeds may be temporarily unavailable during MTA maintenance windows. The
   app will serve stale data during outages and recover automatically when
   feeds come back.
+
+
