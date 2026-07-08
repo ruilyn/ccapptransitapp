@@ -366,10 +366,21 @@ async function fetchStatus() {
     const res = await fetch('/api/subway', { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+
+    const validOld = data && typeof data === 'object' && ('routes' in data);
+    const validNew = data && typeof data === 'object' && Array.isArray(data.feeds);
+
+    if (!validOld && !validNew) {
+      console.error('Unexpected payload:', data);
+      showBanner('error', 'Live data format changed. Please reload.');
+      updateLiveIndicator('error');
+      return;
+    }
+
     applyStatusData(data);
   } catch (err) {
     console.error('[App] fetchStatus error:', err);
-    showBanner('error', 'Could not reach the MTA data server. Retrying…');
+    showBanner('error', 'Could not reach the MTA data server. Retrying�');
     updateLiveIndicator('error');
   }
 }
@@ -377,6 +388,26 @@ async function fetchStatus() {
 function applyStatusData(data) {
   // Handle new /api/subway response shape
   if (Array.isArray(data.feeds)) {
+    const mapped = {};
+
+    for (const feed of data.feeds) {
+      const feedId = String(feed.id || feed.feed || '').toLowerCase();
+      const ok = !!feed.ok;
+      const count = Number(feed.entityCount ?? (Array.isArray(feed.entities) ? feed.entities.length : 0));
+
+      const statusObj = {
+        status: ok ? 'Good Service' : 'Service Issue',
+        detail: ok ? `Live (${count} entities)` : (feed.error || 'Feed unavailable'),
+        updatedAt: data.fetchedAt || null
+      };
+
+      if (feedId.includes('123') || feedId.includes('1')) mapped['t-1'] = statusObj;
+      if (feedId.includes('ace') || feedId === 'a' || feedId.includes('a')) mapped['t-a'] = statusObj;
+      if (feedId.includes('ace') || feedId === 'c' || feedId.includes('c')) mapped['t-c'] = statusObj;
+      if (feedId.includes('bdfm') || feedId === 'd' || feedId.includes('d')) mapped['t-d'] = statusObj;
+    }
+
+    liveStatus = { ...liveStatus, ...mapped };
     hideBanners();
     updateLiveIndicator(data.ok ? 'live' : 'error');
     lastFetchedAt = data.fetchedAt ? new Date(data.fetchedAt) : null;
@@ -753,3 +784,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
