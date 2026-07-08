@@ -22,6 +22,7 @@ const FEEDS = {
   numbered: `${FEED_BASE}/nyct%2Fgtfs`, // 1,2,3,4,5,6,7,S
   ace: `${FEED_BASE}/nyct%2Fgtfs-ace`, // A,C,E
   bdfm: `${FEED_BASE}/nyct%2Fgtfs-bdfm`, // B,D,F,M
+  alerts: `${FEED_BASE}/camsys%2Fsubway-alerts`, // Real-time alerts
 };
 
 // Routes the app cares about for the CCNY campus, mapped to the feed that
@@ -101,7 +102,47 @@ function extractArrivals(feed, routeId, stopId) {
  * upcoming trains are (a large gap after the next train suggests the
  * previous one is overloaded) and live schedule delay.
  */
-function computeStatus({ arrivals, maxDelaySeconds }) {
+
+/**
+ * Extracts currently active alerts for a specific route.
+ */
+function extractAlerts(feed, routeId) {
+  if (!feed || !feed.entity) return [];
+  const activeAlerts = [];
+  const now = Date.now() / 1000;
+
+  for (const entity of feed.entity) {
+    if (!entity.alert) continue;
+
+    // Check if alert affects our route
+    const affectsRoute = Array.isArray(entity.alert.informedEntity) && entity.alert.informedEntity.some((e) => e.routeId === routeId);
+    if (!affectsRoute) continue;
+
+    // Check if alert is currently active
+    let isActive = true;
+    if (entity.alert.activePeriod && entity.alert.activePeriod.length > 0) {
+      isActive = entity.alert.activePeriod.some((period) => {
+        const start = period.start ? Number(period.start) : 0;
+        const end = period.end ? Number(period.end) : Infinity;
+        return now >= start && now <= end;
+      });
+    }
+
+    if (isActive) {
+      const translations = entity.alert.headerText?.translation || [];
+      const englishTranslation = translations.find((t) => t.language === 'en' || t.language === 'en-US');
+      const headerText = englishTranslation ? englishTranslation.text : (translations[0]?.text || '');
+      
+      if (headerText) {
+        activeAlerts.push(headerText.trim());
+      }
+    }
+  }
+
+  return activeAlerts;
+}
+
+function computeStatus({ arrivals, maxDelaySeconds, routeAlerts = [] }) {
   const delayMinutes = maxDelaySeconds / 60;
   const gapMinutes = arrivals.length >= 2 ? arrivals[1].minutesAway - arrivals[0].minutesAway : 6;
 
@@ -111,7 +152,10 @@ function computeStatus({ arrivals, maxDelaySeconds }) {
   let status = 'Good Service';
   let note = 'Trains running on a regular schedule.';
 
-  if (delayMinutes >= 8) {
+  if (routeAlerts.length > 0) {
+    status = 'Service Alert';
+    note = routeAlerts.slice(0, 2).join(' • ') + (routeAlerts.length > 2 ? ` (+${routeAlerts.length - 2} more)` : '');
+  } else if (delayMinutes >= 8) {
     status = 'Severe Delays';
     note = `Trains running about ${Math.round(delayMinutes)} min behind schedule.`;
   } else if (delayMinutes >= 3 || gapMinutes >= 10) {
@@ -133,7 +177,7 @@ function computeStatus({ arrivals, maxDelaySeconds }) {
  * doesn't take down the whole dashboard.
  */
 async function getLiveStatus() {
-  const feedKeysNeeded = [...new Set(Object.values(ROUTES).map((r) => r.feed))];
+  const feedKeysNeeded = [...new Set(Object.values(ROUTES).map((r) => r.feed)), 'alerts'];
   const feeds = {};
 
   await Promise.all(
@@ -161,7 +205,8 @@ async function getLiveStatus() {
     }
 
     const { arrivals, maxDelaySeconds } = extractArrivals(feed, cfg.route, cfg.stopId);
-    const status = computeStatus({ arrivals, maxDelaySeconds });
+    const routeAlerts = extractAlerts(feeds['alerts'], cfg.route);
+    const status = computeStatus({ arrivals, maxDelaySeconds, routeAlerts });
 
     result[id] = {
       ...status,
