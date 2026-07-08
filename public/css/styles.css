@@ -1,0 +1,43 @@
+/* Custom styles for animations and map features */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #f8fafc;
+}
+
+/* Hide scrollbar for clean lists */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Map Node Animations */
+@keyframes pulse-node {
+  0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.55); }
+  70% { box-shadow: 0 0 0 10px rgba(244, 63, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+}
+.node-pulse {
+  animation: pulse-node 2s infinite;
+}
+
+/* Subway Line Colors */
+.line-red { background-color: #ee352e; }    /* 1 Train */
+.line-blue { background-color: #0039a6; }   /* A, C Trains */
+.line-orange { background-color: #ff6319; } /* D Train */
+.line-bus { background-color: #00add0; }    /* Bx Buses */
+
+.modal-backdrop {
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+/* Live status colors reused across cards + map nodes */
+.status-good { background-color: #34d399; color: #34d399; }
+.status-crowded { background-color: #fbbf24; color: #fbbf24; }
+.status-delayed { background-color: #f43f5e; color: #f43f5e; }
+.status-unknown { background-color: #94a3b8; color: #94a3b8; }
