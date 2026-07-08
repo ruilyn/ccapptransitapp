@@ -363,7 +363,7 @@ let lastFetchedAt = null;
 
 async function fetchStatus() {
   try {
-    const res = await fetch('/api/status');
+    const res = await fetch('/api/subway', { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     applyStatusData(data);
