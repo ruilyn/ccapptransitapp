@@ -375,12 +375,21 @@ async function fetchStatus() {
 }
 
 function applyStatusData(data) {
-  // Merge live statuses; keep any routes not returned by server
+  // Handle new /api/subway response shape
+  if (Array.isArray(data.feeds)) {
+    hideBanners();
+    updateLiveIndicator(data.ok ? 'live' : 'error');
+    lastFetchedAt = data.fetchedAt ? new Date(data.fetchedAt) : null;
+    renderSubscriptions();
+    updateLiveTimestamp();
+    return;
+  }
+
+  // Backward-compatible old shape
   if (data.routes && Object.keys(data.routes).length > 0) {
     liveStatus = { ...liveStatus, ...data.routes };
   }
 
-  // Banners
   if (data.error) {
     showBanner('error', data.error);
     updateLiveIndicator('error');
@@ -388,7 +397,7 @@ function applyStatusData(data) {
     const age = data.fetchedAt
       ? Math.round((Date.now() - new Date(data.fetchedAt).getTime()) / 1000)
       : '?';
-    showBanner('stale', `Showing data from ${age}s ago – MTA feed refresh delayed.`);
+    showBanner('stale', `Showing data from ${age}s ago - MTA feed refresh delayed.`);
     updateLiveIndicator('stale');
   } else {
     hideBanners();
