@@ -75,7 +75,7 @@ function setConnectionState(state) {
 
 function statusColorClasses(status) {
   if (status.source === 'error') return { text: 'text-slate-400', bar: 'bg-slate-300', node: 'status-unknown' };
-  if (status.status === 'Severe Delays') return { text: 'text-rose-500', bar: 'bg-rose-500', node: 'status-delayed' };
+  if (status.status === 'Severe Delays' || status.status === 'Service Alert') return { text: 'text-rose-500', bar: 'bg-rose-500', node: 'status-delayed' };
   if (status.status === 'Moderate Delays' || status.status === 'Crowded' || status.status === 'Estimated') {
     return { text: 'text-amber-500', bar: 'bg-amber-400', node: 'status-crowded' };
   }
@@ -204,7 +204,7 @@ function updateStressScore() {
     if (!status || status.crowd == null) return;
     totalCrowd += status.crowd;
     knownCount += 1;
-    if (status.status === 'Severe Delays') severeCount += 1;
+    if (status.status === 'Severe Delays' || status.status === 'Service Alert') severeCount += 1;
     if (status.status === 'Moderate Delays') severeCount += 0.5;
   });
 
@@ -267,7 +267,7 @@ function updateMapVisuals() {
 
     const colors = statusColorClasses(liveStatus[id]);
     node.classList.add(colors.node);
-    if (liveStatus[id].status === 'Severe Delays') node.classList.add('node-pulse');
+    if (liveStatus[id].status === 'Severe Delays' || liveStatus[id].status === 'Service Alert') node.classList.add('node-pulse');
   });
 
   const dNode = document.getElementById('node-t-d');
@@ -276,7 +276,7 @@ function updateMapVisuals() {
     if (userSubscriptions.includes('t-d') && liveStatus['t-d']) {
       const colors = statusColorClasses(liveStatus['t-d']);
       dNode.classList.add(colors.node);
-      if (liveStatus['t-d'].status === 'Severe Delays') dNode.classList.add('node-pulse');
+      if (liveStatus['t-d'].status === 'Severe Delays' || liveStatus['t-d'].status === 'Service Alert') dNode.classList.add('node-pulse');
     } else {
       dNode.classList.add('status-unknown');
     }
