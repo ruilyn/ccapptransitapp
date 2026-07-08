@@ -34,8 +34,8 @@ const ROUTES = {
   't-a': { route: 'A', feed: 'ace', stopId: 'A15', label: '145th St', type: 'train' },
   't-c': { route: 'C', feed: 'ace', stopId: 'A15', label: '145th St', type: 'train' },
   't-d': { route: 'D', feed: 'bdfm', stopId: 'A32', label: '125th St', type: 'train' },
-  'b-bx15': { route: 'BX15', feed: 'busFallback', label: '125th St / Willis Ave', type: 'bus' },
-  'b-m100': { route: 'M100', feed: 'busFallback', label: 'Amsterdam Ave', type: 'bus' },
+  'b-bx15': { route: 'BX15', feed: 'busFallback', label: '125th St / Willis Ave', type: 'bus', defaultCrowd: 55 },
+  'b-m100': { route: 'M100', feed: 'busFallback', label: 'Amsterdam Ave', type: 'bus', defaultCrowd: 25 },
 };
 
 const FEED_CACHE_MS = 25_000; // MTA feeds refresh roughly every 30s
@@ -186,7 +186,8 @@ function computeStatus({ arrivals, maxDelaySeconds, routeAlerts = [] }) {
  * doesn't take down the whole dashboard.
  */
 async function getLiveStatus() {
-  const feedKeysNeeded = ['numbered', 'ace', 'bdfm', 'alerts', 'busAlerts'];
+  const routeFeeds = Object.values(ROUTES).map((r) => r.feed).filter((f) => f !== 'busFallback');
+  const feedKeysNeeded = [...new Set(routeFeeds), 'alerts', 'busAlerts'];
   const feeds = {};
 
   await Promise.all(
@@ -206,7 +207,7 @@ async function getLiveStatus() {
       const isAlert = routeAlerts.length > 0;
       result[id] = {
         status: isAlert ? 'Service Alert' : 'Estimated',
-        crowd: isAlert ? 85 : (id === 'b-bx15' ? 55 : 25),
+        crowd: isAlert ? Math.max(85, cfg.defaultCrowd ?? 0) : (cfg.defaultCrowd ?? 25),
         note: isAlert ? routeAlerts.slice(0, 2).join(' • ') : 'Live bus data requires an MTA Bus Time API key - showing a typical estimate.',
         arrivals: [],
         source: 'estimate',
