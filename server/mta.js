@@ -28,7 +28,7 @@ const FEEDS = {
 // carries them and the nearby station stop_id (base id, without the N/S
 // direction suffix that GTFS-RT appends).
 const ROUTES = {
-  't-1': { route: '1', feed: 'numbered', stopId: '132', label: '137th St-City College' },
+  't-1': { route: '1', feed: 'numbered', stopId: '137', label: '137th St-City College' },
   't-a': { route: 'A', feed: 'ace', stopId: 'A15', label: '145th St' },
   't-c': { route: 'C', feed: 'ace', stopId: 'A15', label: '145th St' },
   't-d': { route: 'D', feed: 'bdfm', stopId: 'A32', label: '125th St' },
