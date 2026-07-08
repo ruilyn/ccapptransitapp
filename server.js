@@ -96,7 +96,7 @@ app.get('/api/status', (req, res) => {
     return res.json({
       fetchedAt: null,
       isStale: false,
-      error: config.mtaApiKey ? 'Fetching data – please wait a moment.' : 'MTA_API_KEY not configured.',
+      error: 'Fetching data – please wait a moment.',
       routes: {},
       alerts: [],
     });
