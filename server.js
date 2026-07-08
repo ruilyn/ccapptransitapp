@@ -49,7 +49,7 @@ const config = {
 // Warn early if the key is missing
 if (!config.mtaApiKey || config.mtaApiKey === 'your_mta_api_key_here') {
   console.warn(
-    '[Config] WARNING: MTA_API_KEY is not set. ' +
+    '[Config] MTA_API_KEY not set; using public MTA feeds (no key required). ' +
     'Subway feeds will fail. Set it in .env (see .env.example).'
   );
 }
@@ -96,7 +96,7 @@ app.get('/api/status', (req, res) => {
     return res.json({
       fetchedAt: null,
       isStale: false,
-      error: 'Fetching data – please wait a moment.',
+error: 'Fetching data - please wait a moment.',
       routes: {},
       alerts: [],
     });
@@ -163,3 +163,7 @@ process.on('SIGINT', () => {
 });
 
 module.exports = app; // export for testing
+
+
+
+
